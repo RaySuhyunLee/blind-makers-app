@@ -92,7 +92,7 @@ public class BleService extends Service {
         }, period);
     }
 
-    public void connect(BluetoothDevice device, RxCallback rxCallback) {
+    public void connect(BluetoothDevice device, ConnectionCallback connectionCallback, RxCallback rxCallback) {
         BluetoothGattCallback callback = new BluetoothGattCallback() {
             private boolean isBuffering = false;
             private String buffer = "";
@@ -102,8 +102,12 @@ public class BleService extends Service {
                 if (newState == BluetoothProfile.STATE_CONNECTED) {
                     bluetoothGatt = gatt;
                     gatt.discoverServices();
+                    if (connectionCallback != null)
+                        connectionCallback.onConnected();
                 } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
                     bluetoothGatt = null;
+                    if (connectionCallback != null)
+                        connectionCallback.onDisconnected();
                 }
             }
 
@@ -146,6 +150,13 @@ public class BleService extends Service {
         device.connectGatt(this, false, callback);
     }
 
+    public void disconnect() {
+        if (isConnected()) {
+            bluetoothGatt.disconnect();
+            bluetoothGatt = null;
+        }
+    }
+
     private boolean isReadableCharateristic(BluetoothGattCharacteristic c) {
         return (c.getProperties() & BluetoothGattCharacteristic.PROPERTY_READ) > 0;
     }
@@ -173,6 +184,11 @@ public class BleService extends Service {
 
     public interface RxCallback {
         void onReceive(String msg);
+    }
+
+    public interface ConnectionCallback {
+        void onConnected();
+        void onDisconnected();
     }
 
     public boolean isConnected() {
