@@ -31,8 +31,10 @@ public class BleService extends Service {
     private BluetoothGatt bluetoothGatt;
     private BluetoothLeScanner bleScanner;
     private ScanSettings scanSettings;
+    private BluetoothGattCharacteristic defaultCharacteristic;
 
-    private boolean isConnected = false;
+    private String prefix = "";
+    private String suffix = "";
 
     public class BleBinder extends Binder {
         public BleService getService() {
@@ -46,11 +48,6 @@ public class BleService extends Service {
         bluetoothAdapter = manager.getAdapter();
         bleScanner = bluetoothAdapter.getBluetoothLeScanner();
         scanSettings = new ScanSettings.Builder().build();
-    }
-
-    @Override
-    public int onStartCommand(Intent intent, int flags, int startId) {
-        return START_STICKY;
     }
 
     @Override
@@ -95,18 +92,17 @@ public class BleService extends Service {
         }, period);
     }
 
-    public void connect(BluetoothDevice device) {
+    public void connect(BluetoothDevice device, RxCallback rxCallback) {
         BluetoothGattCallback callback = new BluetoothGattCallback() {
-            String buffer = "";
+            private boolean isBuffering = false;
+            private String buffer = "";
 
             @Override
             public void onConnectionStateChange(BluetoothGatt gatt, int status, int newState) {
                 if (newState == BluetoothProfile.STATE_CONNECTED) {
-                    isConnected = true;
                     bluetoothGatt = gatt;
                     gatt.discoverServices();
                 } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
-                    isConnected = false;
                     bluetoothGatt = null;
                 }
             }
@@ -116,9 +112,12 @@ public class BleService extends Service {
                 // find readable and writable characteristics
                 for(BluetoothGattService s : gatt.getServices()) {
                     for(BluetoothGattCharacteristic c : s.getCharacteristics()) {
-                        int properties = c.getProperties();
-                        if ((properties & BluetoothGattCharacteristic.PROPERTY_NOTIFY) > 0) {
+                        if (isNotificationCharacteristic(c)) {
                             gatt.setCharacteristicNotification(c, true);
+                            if (isWritableCharacteristic(c) && defaultCharacteristic == null) {
+                                defaultCharacteristic = c;
+                                Log.d("BleService", "DefaultCharacteristic found");
+                            }
                         }
                     }
                 }
@@ -127,11 +126,38 @@ public class BleService extends Service {
             @Override
             public void onCharacteristicChanged(BluetoothGatt gatt,
                                                 BluetoothGattCharacteristic characteristic) {
+                Log.d("BleService", "Characteristic changed: " + characteristic.getUuid());
                 String str = characteristic.getStringValue(0);
+                if (str.startsWith(prefix)) {
+                    buffer = "";
+                    isBuffering = true;
+                }
+
+                if (isBuffering) {
+                    buffer += str;
+                    if (str.endsWith(suffix)) {
+                        rxCallback.onReceive(buffer);
+                        isBuffering = false;
+                    }
+                }
             }
         };
 
         device.connectGatt(this, false, callback);
+    }
+
+    private boolean isReadableCharateristic(BluetoothGattCharacteristic c) {
+        return (c.getProperties() & BluetoothGattCharacteristic.PROPERTY_READ) > 0;
+    }
+
+    private boolean isWritableCharacteristic(BluetoothGattCharacteristic c) {
+        int p = c.getProperties();
+        return ((p & BluetoothGattCharacteristic.PROPERTY_WRITE) |
+                (p & BluetoothGattCharacteristic.PROPERTY_WRITE_NO_RESPONSE)) > 0;
+    }
+
+    private boolean isNotificationCharacteristic(BluetoothGattCharacteristic c) {
+        return (c.getProperties() & BluetoothGattCharacteristic.PROPERTY_NOTIFY) > 0;
     }
 
     private void closeBluetoothGatt() {
@@ -145,7 +171,22 @@ public class BleService extends Service {
         void onScanFinished();
     }
 
+    public interface RxCallback {
+        void onReceive(String msg);
+    }
+
     public boolean isConnected() {
-        return isConnected;
+        return bluetoothGatt != null;
+    }
+
+    public void write(byte[] msg) {
+        if (!isConnected()) {
+            Log.e("BleService", "Bluetooth not connected!");
+            return;
+        }
+
+        defaultCharacteristic.setValue(msg);
+        defaultCharacteristic.setWriteType(BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE);
+        bluetoothGatt.writeCharacteristic(defaultCharacteristic);
     }
 }
