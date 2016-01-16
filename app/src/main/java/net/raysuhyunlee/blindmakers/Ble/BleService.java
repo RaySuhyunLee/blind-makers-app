@@ -36,6 +36,9 @@ public class BleService extends Service {
     private String prefix = "";
     private String suffix = "";
 
+    public float weight;
+    public float battery;
+
     public class BleBinder extends Binder {
         public BleService getService() {
             return BleService.this;
@@ -92,9 +95,8 @@ public class BleService extends Service {
         }, period);
     }
 
-    public void connect(BluetoothDevice device, ConnectionCallback connectionCallback, RxCallback rxCallback) {
+    public void connect(BluetoothDevice device, ConnectionCallback connectionCallback) {
         BluetoothGattCallback callback = new BluetoothGattCallback() {
-            private boolean isBuffering = false;
             private String buffer = "";
 
             @Override
@@ -130,18 +132,30 @@ public class BleService extends Service {
             @Override
             public void onCharacteristicChanged(BluetoothGatt gatt,
                                                 BluetoothGattCharacteristic characteristic) {
-                Log.d("BleService", "Characteristic changed: " + characteristic.getUuid());
+                //Log.d("BleService", "Characteristic changed: " + characteristic.getUuid());
                 String str = characteristic.getStringValue(0);
-                if (str.startsWith(prefix)) {
-                    buffer = "";
-                    isBuffering = true;
-                }
+                buffer += str;
 
-                if (isBuffering) {
-                    buffer += str;
-                    if (str.endsWith(suffix)) {
-                        rxCallback.onReceive(buffer);
-                        isBuffering = false;
+                while(true) {
+                    int start = buffer.indexOf(prefix);
+                    if (start != -1) {
+                        int end = buffer.indexOf(suffix, start);
+                        if (end != -1) {
+                            try {
+                                //rxCallback.onReceive(buffer.substring(start + prefix.length(), end));
+                            } catch (Exception e) {
+                                e.printStackTrace();
+                            }
+                            String sub = buffer.substring(start + prefix.length(), end);
+                            String split[] = sub.split(",");
+                            weight = Float.parseFloat(split[0]);
+                            battery = Float.parseFloat(split[1]);
+                            buffer = buffer.substring(end + suffix.length());
+                        } else {
+                            break;
+                        }
+                    } else {
+                        break;
                     }
                 }
             }
@@ -204,5 +218,21 @@ public class BleService extends Service {
         defaultCharacteristic.setValue(msg);
         defaultCharacteristic.setWriteType(BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE);
         bluetoothGatt.writeCharacteristic(defaultCharacteristic);
+    }
+
+    public void setPrefix(String prefix) {
+        this.prefix = prefix;
+    }
+
+    public void setSuffix(String suffix) {
+        this.suffix = suffix;
+    }
+
+    public String getPrefix() {
+        return prefix;
+    }
+
+    public String getSuffix() {
+        return suffix;
     }
 }

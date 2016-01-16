@@ -6,6 +6,7 @@ import android.bluetooth.BluetoothDevice;
 import android.content.ComponentName;
 import android.content.Intent;
 import android.content.ServiceConnection;
+import android.os.Handler;
 import android.os.IBinder;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
@@ -21,16 +22,17 @@ import net.raysuhyunlee.blindmakers.Ble.BleService;
 import java.util.ArrayList;
 import java.util.List;
 
+import butterknife.Bind;
+import butterknife.ButterKnife;
+
 public class MainActivity extends AppCompatActivity {
+    @Bind(R.id.textViewWeight) TextView textViewWeight;
 
     private MenuItem scanMenu;
 
     // Ble
     private ServiceConnection serviceConn;
     private BleService bleService;
-    private BleService.RxCallback rxCallback = (msg) -> {
-
-    };
     private BleService.ConnectionCallback connectionCallback = new BleService.ConnectionCallback() {
         @Override
         public void onConnected() {
@@ -47,12 +49,25 @@ public class MainActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+        ButterKnife.bind(this);
 
         serviceConn = new ServiceConnection() {
             @Override
             public void onServiceConnected(ComponentName name, IBinder service) {
                 Log.d("MainActivity", "service connected");
                 bleService = ((BleService.BleBinder)service).getService();
+                bleService.setPrefix("s");
+                bleService.setSuffix(";\r\n");
+
+                Handler handler = new Handler();
+                final Runnable r = new Runnable() {
+                    @Override
+                    public void run() {
+                        textViewWeight.setText(getString(R.string.format_weight, (int)bleService.weight));
+                        handler.postDelayed(this, 300);
+                    }
+                };
+                handler.postDelayed(r, 300);
             }
 
             @Override
@@ -134,7 +149,7 @@ public class MainActivity extends AppCompatActivity {
                     builder.setMessage(R.string.no_available_devices);
                 } else {
                     builder.setAdapter(adapter, (dialog, which) -> {
-                        bleService.connect(devices.get(which), connectionCallback, rxCallback);
+                        bleService.connect(devices.get(which), connectionCallback);
                     });
                 }
                 builder.show();
@@ -150,7 +165,8 @@ public class MainActivity extends AppCompatActivity {
         builder.setPositiveButton(R.string.yes, (dialog, which) -> {
             bleService.disconnect();
         });
-        builder.setNegativeButton(R.string.no, (dialog, which) -> {});
+        builder.setNegativeButton(R.string.no, (dialog, which) -> {
+        });
         builder.show();
     }
 

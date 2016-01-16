@@ -9,4 +9,7 @@
     <string name="ask_disconnect">장치와의 연결을 해제하시겠습니까?</string>
     <string name="yes">네</string>
     <string name="no">아니오</string>
+
+    <string name="weight">무게</string>
+    <string name="format_weight">%d kg</string>
 </resources>
