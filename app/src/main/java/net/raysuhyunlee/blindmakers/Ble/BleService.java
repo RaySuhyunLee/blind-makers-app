@@ -32,12 +32,14 @@ public class BleService extends Service {
     private BluetoothLeScanner bleScanner;
     private ScanSettings scanSettings;
     private BluetoothGattCharacteristic defaultCharacteristic;
+    private ScanCallback currentScanCallback;
 
     private String prefix = "";
     private String suffix = "";
 
     public float weight;
     public float battery;
+    public int rssi;
 
     public class BleBinder extends Binder {
         public BleService getService() {
@@ -67,6 +69,32 @@ public class BleService extends Service {
         if (bluetoothAdapter != null && !bluetoothAdapter.enable()) {
             Intent enableIntent = new Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE);
             activity.startActivityForResult(enableIntent, 0);
+        }
+    }
+
+    public void scanDevices(CompatScanCallback scanCallback) {
+        if (!bluetoothAdapter.isEnabled()) {
+            Log.d("BleService", "Bluetooth is off. Cancel scan");
+            return;
+        }
+
+        if (bleScanner == null) {
+            bleScanner = bluetoothAdapter.getBluetoothLeScanner();
+        }
+        currentScanCallback = new ScanCallback() {
+            @Override
+            public void onScanResult(int callbackType, ScanResult result) {
+                super.onScanResult(callbackType, result);
+                scanCallback.onScan(result.getDevice());
+            }
+        };
+        bleScanner.startScan(null, scanSettings, currentScanCallback);
+    }
+
+    public void stopScan() {
+        if (currentScanCallback != null && bleScanner != null) {
+            bleScanner.stopScan(currentScanCallback);
+            currentScanCallback = null;
         }
     }
 
@@ -130,9 +158,15 @@ public class BleService extends Service {
             }
 
             @Override
+            public void onReadRemoteRssi(BluetoothGatt gatt, int rssi, int status) {
+                BleService.this.rssi = rssi;
+            }
+
+            @Override
             public void onCharacteristicChanged(BluetoothGatt gatt,
                                                 BluetoothGattCharacteristic characteristic) {
                 //Log.d("BleService", "Characteristic changed: " + characteristic.getUuid());
+                gatt.readRemoteRssi();
                 String str = characteristic.getStringValue(0);
                 buffer += str;
 

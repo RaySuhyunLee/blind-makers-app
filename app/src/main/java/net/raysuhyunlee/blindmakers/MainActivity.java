@@ -13,6 +13,7 @@ import android.os.Bundle;
 import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
+import android.widget.Button;
 import android.widget.TextView;
 
 import com.lsjwzh.widget.materialloadingprogressbar.CircleProgressBar;
@@ -24,9 +25,24 @@ import java.util.List;
 
 import butterknife.Bind;
 import butterknife.ButterKnife;
+import butterknife.OnClick;
 
 public class MainActivity extends AppCompatActivity {
     @Bind(R.id.textViewWeight) TextView textViewWeight;
+    @Bind(R.id.buttonTurnOn) Button buttonTurnOn;
+    @OnClick(R.id.buttonTurnOn) void turnOn() {
+        if (isTurnOn) {
+            buttonTurnOn.setText(R.string.turn_off);
+            isTurnOn = false;
+            //byte buf[] = {'a', '\n'};   // auto mode
+            //bleService.write(buf);
+        } else {
+            buttonTurnOn.setText(R.string.turn_on);
+            isTurnOn = true;
+            //byte buf[] = {'s', '\n'};   // self(not auto) mode
+            //bleService.write(buf);
+        }
+    }
 
     private MenuItem scanMenu;
 
@@ -44,6 +60,7 @@ public class MainActivity extends AppCompatActivity {
             invalidateOptionsMenu();
         }
     };
+    private boolean isTurnOn = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -63,6 +80,7 @@ public class MainActivity extends AppCompatActivity {
                 final Runnable r = new Runnable() {
                     @Override
                     public void run() {
+                        int weight = (int)bleService.weight;
                         textViewWeight.setText(getString(R.string.format_weight, (int)bleService.weight));
                         handler.postDelayed(this, 300);
                     }

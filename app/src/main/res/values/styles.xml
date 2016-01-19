@@ -22,4 +22,7 @@
         <item name="cardCornerRadius">3dp</item>
     </style>
 
+    <style name="Button" parent="Widget.AppCompat.Button">
+    </style>
+
 </resources>
